@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A* Visualization</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            /* overflow: hidden; */
+            width: 100%;
+            height: 100%;
+        }
+
+        @keyframes flipScale {
+            0% {
+                transform: scale(1) rotateY(0deg);
+            }
+
+            50% {
+                transform: scale(2) rotateY(90deg);
+                fill: aqua;
+            }
+
+            100% {
+                transform: scale(1) rotateY(180deg);
+                fill-opacity: 0.4;
+            }
+        }
+
+        .cell-animated {
+            animation: flipScale 0.5s forwards;
+        }
+
+        .cell {
+            width: 10px;
+            height: 10px;
+            border: 1px solid black;
+            display: inline-block;
+            border-radius: 100px;
+        }
+
+        #svg-grid {
+            transform-style: preserve-3d;
+            transition: transform 2s, fill-opacity 0.3s;
+            /* Animation transition */
+        }
+
+        @keyframes fillAnimation {
+            0% {
+                fill: aqua;
+                transform: scale(0.9);
+            }
+
+            100% {
+                fill: currentColor;
+                transform: scale(1);
+            }
+        }
+
+
+        #svg-grid rect:hover {
+            animation: fillAnimation 0.5s infinite alternate;
+        }
+
+
+        #svg-grid .start {
+            fill: green;
+        }
+
+        #svg-grid .end {
+            fill: red;
+        }
+
+        #svg-grid .wall {
+            fill: black;
+        }
+
+        #svg-grid .path {
+            fill: blue;
+        }
+    </style>
+</head>
+
+<body>
+    <button onclick="findPath(false)">Find Path</button>
+    <button onclick="findPath(true)">Find Path Parallel</button>
+    <button onclick="activateSetStartMode()">Set Start Point</button>
+    <button onclick="activateSetEndMode()">Set End Point</button>
+
+
+    <div id="grid"></div>
+    <svg id="svg-grid"></svg>
+
+    <script>
+
+        let setStartMode = false;
+        let setEndMode = false;
+
+        let pathLineGroups = [];
+
+
+
+
+        // Determine the size of the viewport
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight - 40;
+
+        // Decide how many cells you want in one row (you can adjust this as desired)
+        const numCellsPerRow = 200;  // Example value, adjust as needed
+
+        // Calculate the cell size based on the viewport width and the desired number of cells per row
+        const cellSize = Math.floor(viewportWidth / numCellsPerRow);
+
+        // Calculate the number of rows based on the viewport height and cell size
+        const numRows = Math.floor(viewportHeight / cellSize);
+
+        // If you want the gridSize to be square (same number of cells in rows and columns)
+        const gridSize = Math.min(numCellsPerRow, numRows);
+
+        let start = { x: 0, y: 0 };
+        let end = { x: gridSize - 1, y: gridSize - 1 };
+        let grid = [];
+
+        for (let i = 0; i < gridSize; i++) {
+            grid[i] = [];
+            for (let j = 0; j < gridSize; j++) {
+                grid[i][j] = { isWall: false };
+            }
+        }
+
+        function renderSvgGrid() {
+            const svg = document.getElementById('svg-grid');
+            svg.innerHTML = '';  // Clear previous content
+
+            const gridWidth = gridSize * cellSize;
+            const gridHeight = gridSize * cellSize;
+
+            svg.setAttribute('width', gridWidth);
+            svg.setAttribute('height', gridHeight);
+            svg.setAttribute('fill', '#F1F1F1');
+            svg.setAttribute('fill-opacity', 0.4);
+
+            console.log(gridWidth);
+
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const cellElem = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    cellElem.setAttribute('width', cellSize);
+                    cellElem.setAttribute('height', cellSize);
+                    cellElem.setAttribute('x', j * cellSize);
+                    cellElem.setAttribute('y', i * cellSize);
+
+                    cellElem.setAttribute('rx', cellSize / 4);  // half of cellSize
+                    cellElem.setAttribute('ry', cellSize / 4);
+
+                    // Compute and set the transform-origin for this cell
+                    const centerX = (j * cellSize + cellSize / 2) + 'px';
+                    const centerY = (i * cellSize + cellSize / 2) + 'px';
+                    cellElem.style.transformOrigin = `${centerX} ${centerY}`;
+
+                    if (i === start.x && j === start.y) cellElem.setAttribute('class', 'start');
+                    else if (i === end.x && j === end.y) cellElem.setAttribute('class', 'end');
+                    else if (grid[i][j].isWall) cellElem.setAttribute('class', 'wall');
+                    svg.appendChild(cellElem);
+                }
+            }
+        }
+
+        function toggleWall(i, j) {
+            if (!((i === start.x && j === start.y) || (i === end.x && j === end.y))) {
+                grid[i][j].isWall = !grid[i][j].isWall;
+            }
+        }
+
+
+
+        function addNewPathLines(newLines) {
+            if (pathLineGroups.length >= 10) {
+                // Remove the oldest path lines from the SVG and the array
+                const oldLines = pathLineGroups.shift();
+                oldLines.forEach(line => {
+                    line.remove();
+                });
+            }
+            pathLineGroups.push(newLines);
+        }
+
+        function adjustOpacities() {
+            const maxOpacity = 1.0;
+            const decrement = 0.1; // adjust as required
+
+            console.log(pathLineGroups);
+
+            for (let i = 0; i < pathLineGroups.length; i++) {
+                const opacity = maxOpacity - (i * decrement);
+                pathLineGroups[pathLineGroups.length - i].forEach(line => {
+                    line.setAttribute('stroke-opacity', opacity);
+                });
+            }
+        }
+
+
+
+
+        async function findPath(parallel) {
+            const svg = document.getElementById('svg-grid');
+
+            const endpoint = parallel ? '/find_path_parallel' : '/find_path'; 
+            
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grid, start, end })
+            });
+            const path = await response.json();
+            console.log(path);
+
+            const newLines = [];
+            for (let i = 0; i < path.length - 1; i++) { // We subtract 1 because we don't need to draw a line from the last point
+                const startPoint = path[i];
+                const endPoint = path[i + 1];
+
+                const x1 = (startPoint[1] * cellSize) + (cellSize / 2);
+                const y1 = (startPoint[0] * cellSize) + (cellSize / 2);
+                const x2 = (endPoint[1] * cellSize) + (cellSize / 2);
+                const y2 = (endPoint[0] * cellSize) + (cellSize / 2);
+
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('class', 'path-line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', 'blue'); // Color of the path
+                line.setAttribute('stroke-width', '2'); // Thickness of the path
+
+                svg.appendChild(line);
+                newLines.push(line);
+            }
+            addNewPathLines(newLines);
+            adjustOpacities();
+        }
+
+
+
+
+        function getCellFromEvent(evt) {
+            const rect = evt.target;
+            const x = Math.floor(evt.offsetX / cellSize);
+            const y = Math.floor(evt.offsetY / cellSize);
+            return { x, y };
+        }
+
+        function applyAnimation(i, j) {
+
+            const svg = document.getElementById('svg-grid');
+            const cellElem = svg.querySelector(`rect[x="${j * cellSize}"][y="${i * cellSize}"]`);
+
+            cellElem.classList.add('cell-animated');
+
+
+
+            // Remove the animation class after it completes to allow for subsequent animations
+            cellElem.addEventListener('animationend', function () {
+                cellElem.classList.remove('cell-animated');
+            }, { once: true });
+        }
+
+        function updateCellElement(i, j) {
+            if ((i === start.x && j === start.y) || (i === end.x && j === end.y)) {
+                return;  // Skip the animation for start and end nodes
+            }
+            const svg = document.getElementById('svg-grid');
+            const cellElem = svg.querySelector(`rect[x="${j * cellSize}"][y="${i * cellSize}"]`);
+            if (grid[i][j].isWall) {
+                cellElem.setAttribute('class', 'wall');
+            } else {
+                cellElem.removeAttribute('class');
+            }
+
+            applyAnimation(i, j);  // Apply animation every time the cell updates
+        }
+
+
+        let isDragging = false;
+        let dragState = null;  // To track the initial state of the cell when dragging starts
+
+        document.getElementById('svg-grid').addEventListener('mousedown', evt => {
+
+            if (setStartMode || setEndMode) {
+                isDragging = false;
+            } else {
+                isDragging = true;
+            }
+
+
+
+            const { x, y } = getCellFromEvent(evt);
+
+            if (setStartMode) {
+                start = { x: y, y: x };  // Update the start point
+                renderSvgGrid();  // Re-render the grid to reflect the change
+                setStartMode = false;  // Exit the "set start point" mode
+            } else if (setEndMode) {
+                end = { x: y, y: x };  // Update the end point
+                renderSvgGrid();  // Re-render the grid to reflect the change
+                setEndMode = false;  // Exit the "set end point" mode
+            } else {
+                isDragging = true;
+                dragState = !grid[y][x].isWall;  // Setting the opposite of the current state
+                toggleWall(y, x);
+                updateCellElement(y, x);  // Update only this cell
+            }
+        });
+
+
+        document.getElementById('svg-grid').addEventListener('mousemove', evt => {
+            if (!isDragging) return;
+            const { x, y } = getCellFromEvent(evt);
+            if (grid[y][x].isWall !== dragState) {
+                toggleWall(y, x);
+                updateCellElement(y, x);  // Update only this cell
+            }
+        });
+
+        document.getElementById('svg-grid').addEventListener('mouseup', () => {
+            isDragging = false;
+            dragState = null;  // Resetting the dragState on mouse up
+        });
+
+
+
+        function activateSetStartMode() {
+            setStartMode = true;
+            setEndMode = false;
+        }
+
+
+        function activateSetEndMode() {
+            setEndMode = true;
+            setStartMode = false;
+        }
+
+
+
+
+
+
+        renderSvgGrid();
+    </script>
+</body>
+
+</html>
