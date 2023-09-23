@@ -4,7 +4,7 @@ from matplotlib.animation import FuncAnimation
 #from aStar3d import AStarSolver
 from aStarXd import AStarSolver
 
-DEG_INT = 20
+DEG_INT = 5
 DEG_STEP = 360 // DEG_INT
 
 
@@ -17,83 +17,8 @@ class ArmAnimator:
     ]
     
     
-    
     def __init__(self, arm_config):
         self.arm_config = arm_config
-
-    def animate_solution(self, solution):
-        fig, ax = plt.subplots()
-
-        total_len = sum([arm['length'] for arm in self.arm_config])
-        ax.set_xlim(-total_len, total_len)
-        ax.set_ylim(-total_len, total_len)
-        ax.grid(True)
-        ax.set_aspect('equal', 'box')
-
-        line, = ax.plot([], [], 'o-', color='blue', label='Current Position')
-        
-        # Getting start and end endpoints for the arm
-        start_x, start_y = self._config_to_endpoint(solution[0])
-        end_x, end_y = self._config_to_endpoint(solution[-1])
-
-        # Adding start and end markers for arm's endpoint
-        start_marker, = ax.plot(start_x, start_y, 'go', markersize=8, label='Start Endpoint')
-        end_marker, = ax.plot(end_x, end_y, 'ro', markersize=8, label='End Endpoint')
-        
-        
-        # Draw obstacle segments
-        for obs in obstacle_segments:
-            plt.plot([obs[0].real, obs[1].real], [obs[0].imag, obs[1].imag], 'r-', linewidth=2)
-
-
-        def init():
-            line.set_data([], [])
-            return line, start_marker, end_marker
-
-        def update(frame):
-            config = solution[frame]
-            xdata, ydata = self._config_to_xy(config)
-            line.set_data(xdata, ydata)
-            
-            # Ensure start and end markers are plotted at every frame
-            start_marker.set_data(start_x, start_y)
-            end_marker.set_data(end_x, end_y)
-
-            return line, start_marker, end_marker 
-
-        ani = FuncAnimation(fig, update, frames=len(solution), init_func=init, blit=True, repeat=False)
-        ax.legend()
-        plt.show()
-        
-    # def animate_solutions(self, solutions):
-    #     fig, ax = plt.subplots()
-
-    #     total_len = sum([arm['length'] for arm in self.arm_config])
-    #     ax.set_xlim(-total_len, total_len)
-    #     ax.set_ylim(-total_len, total_len)
-    #     ax.grid(True)
-    #     ax.set_aspect('equal', 'box')
-
-    #     line, = ax.plot([], [], 'o-', color='blue', label='Current Position')
-
-    #     # Flatten solutions into a single list for animation
-    #     flat_solution = [config for solution in solutions for config in solution]
-
-    #     def init():
-    #         line.set_data([], [])
-    #         return line,
-
-    #     def update(frame):
-    #         config = flat_solution[frame]
-    #         xdata, ydata = self._config_to_xy(config)
-    #         line.set_data(xdata, ydata)
-    #         return line,
-
-    #     ani = FuncAnimation(fig, update, frames=len(flat_solution), init_func=init, blit=True, repeat=False)
-    #     ax.legend()
-    #     plt.show()
-        
-        
         
     def animate_solutions(self, solutions):
         fig, ax = plt.subplots()
@@ -110,12 +35,16 @@ class ArmAnimator:
         flat_solution = [config for solution in solutions for config in solution]
 
         # Getting start and end endpoints for the arm
+        
         start_x, start_y = self._config_to_endpoint(flat_solution[0])
+        targets = self._configs_to_endpoints([solution[0] for solution in solutions])
         end_x, end_y = self._config_to_endpoint(flat_solution[-1])
 
         # Adding start and end markers for arm's endpoint
         start_marker, = ax.plot(start_x, start_y, 'go', markersize=8, label='Start Endpoint')
         end_marker, = ax.plot(end_x, end_y, 'ro', markersize=8, label='End Endpoint')
+        
+        target_markers = ax.plot(targets, 'bx', markersize=4, label='targets')
         
         # Draw obstacle segments
         for obs in self.obstacle_segments:
@@ -130,11 +59,11 @@ class ArmAnimator:
         def update(frame):
             config = flat_solution[frame]
             xdata, ydata = self._config_to_xy(config)
-            line.set_data(xdata, ydata)
+            line.set_data([xdata], [ydata])
             
             # Ensure start and end markers are plotted at every frame
-            start_marker.set_data(start_x, start_y)
-            end_marker.set_data(end_x, end_y)
+            start_marker.set_data([start_x], [start_y])
+            end_marker.set_data([end_x], [end_y])
             
             return line, start_marker, end_marker 
 
@@ -148,7 +77,12 @@ class ArmAnimator:
         total_angle = 0
         xdata, ydata = [0], [0]
         for angle, arm in zip(config, self.arm_config):
-            total_angle += DEG_INT * angle * np.pi / 180
+            angle_degrees = DEG_INT * angle
+            
+            angle_normalized = angle_degrees  - 180  # Ensure it's within -180 to 180 degrees
+            angle_radians = angle_normalized * np.pi / 180
+            
+            total_angle += angle_radians  #DEG_INT * angle * np.pi / 180
             end_x, end_y = xdata[-1] + arm['length'] * np.cos(total_angle), ydata[-1] + arm['length'] * np.sin(total_angle)
             xdata.append(end_x)
             ydata.append(end_y)
@@ -158,12 +92,12 @@ class ArmAnimator:
         xdata, ydata = self._config_to_xy(config)
         return xdata[-1], ydata[-1]
     
+    def _configs_to_endpoints(self, configs):
+        return [self._config_to_endpoint(config)[::-1] for config in configs]
     
     
     
 class ArmConfiguration:
-    
-
     
     @staticmethod
     def calculate_valid_space(arm_config):
@@ -206,7 +140,10 @@ class ArmConfiguration:
         total_angle = 0
         start_point = complex(0, 0)
         for angle, arm in zip(config, arm_config):
-            total_angle += DEG_INT * angle * np.pi / 180
+            angle_degrees = DEG_INT * angle
+            angle_normalized = angle_degrees  - 180  # Ensure it's within -180 to 180 degrees
+            angle_radians = angle_normalized * np.pi / 180
+            total_angle += angle_radians  #DEG_INT * angle * np.pi / 180
             end_point = start_point + arm['length'] * np.exp(1j * total_angle)
             ax.plot([start_point.real, end_point.real], [start_point.imag, end_point.imag], 'o-')
             start_point = end_point
@@ -257,7 +194,13 @@ class ArmConfiguration:
         start_point = complex(0, 0)
         segments = []
         for angle, arm in zip(config, arm_config):
-            total_angle += DEG_INT * angle * np.pi / 180
+            angle_degrees = DEG_INT * angle
+            
+            
+            angle_normalized = angle_degrees  - 180  # Ensure it's within -180 to 180 degrees
+            angle_radians = angle_normalized * np.pi / 180
+            total_angle += angle_radians  #DEG_INT * angle * np.pi / 180
+            
             end_point = start_point + arm['length'] * np.exp(1j * total_angle)
             segments.append((start_point, end_point))
             start_point = end_point
@@ -277,6 +220,8 @@ class ArmConfiguration:
         return False
 
 
+
+
     @staticmethod
     def validate(config, arm_config):
         if ArmConfiguration.self_intersect(config, arm_config):
@@ -292,12 +237,33 @@ def select_random_configs(c_space, val, count=1):
 
 
 
+def visualize_c_space_slice(c_space, joint1, joint2):
+    """
+    Visualizes the configuration space for two specified joints.
+    """
+    # Extracting the 2D slice for the given joints
+    c_space_slice = c_space.sum(axis=tuple([i for i in range(c_space.ndim) if i not in [joint1, joint2]]))
+    
+    # Plotting
+    plt.imshow(c_space_slice, cmap='gray_r', interpolation='none', origin='lower')
+    plt.colorbar(label='Number of valid configurations')
+    plt.title(f"C-Space for Joint {joint1 + 1} and Joint {joint2 + 1}")
+    plt.xlabel(f"Joint {joint1 + 1} angle (increments of {DEG_INT} degrees)")
+    plt.ylabel(f"Joint {joint2 + 1} angle (increments of {DEG_INT} degrees)")
+    plt.show()
+
+
+
+
+
+
+
 if __name__ == "__main__":
     arm_config = [
-        {'name': 'arm01', 'length': 1, 'angle-limit': 5},
-        {'name': 'arm02', 'length': 1, 'angle-limit': 5},
-        {'name': 'arm03', 'length': 1, 'angle-limit': 5},
-        {'name': 'arm04', 'length': 1, 'angle-limit': 5}
+        {'name': 'arm01', 'length': 1, 'angle-limit': 45},
+        {'name': 'arm02', 'length': 1, 'angle-limit': 45},
+        {'name': 'arm03', 'length': 1, 'angle-limit': 45}
+        # {'name': 'arm04', 'length': 1, 'angle-limit': 5}
     ]
     
     
@@ -309,25 +275,12 @@ if __name__ == "__main__":
     
 
     c_space = ArmConfiguration.calculate_valid_space(arm_config)
-
-
-    # random_config_A = select_random_config(c_space, 1)
-    # random_config_B = select_random_config(c_space, 1)
     
-    # answer = ArmConfiguration.self_intersect(random_config_B, arm_config)
-    # print(answer)
     
+    # Usage example: visualize the c_space slice for joints 0 and 1
+    visualize_c_space_slice(c_space, 0, 1)
 
     solver = AStarSolver(c_space)
-    
-    # solution = solver.solve(random_config_A, random_config_B)
-
-    # if solution:
-    #     print(solution)
-    #     animator = ArmAnimator(arm_config)
-    #     animator.animate_solution(solution)
-    # else:
-    #     print("No solution found!")
         
         
     num_random_configs = 5
