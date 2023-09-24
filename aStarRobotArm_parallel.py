@@ -4,8 +4,23 @@ from matplotlib.animation import FuncAnimation
 from aStarXd import AStarSolver
 from itertools import combinations
 
+from multiprocessing import Pool, cpu_count
+
 STEP_INT = 2
 DEG_STEP = 360 // STEP_INT
+
+
+DEGREES_TO_RADIANS = np.pi / 180
+
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+
 
 
 def plot_segments(segments):
@@ -36,12 +51,18 @@ def select_random_configs(c_space, val, count=1):
     return [tuple(indices[np.random.choice(len(indices))]) for _ in range(count)]
 
 
+
+
 def ccw(A, B, C):
     return (C.imag - A.imag) * (B.real - A.real) > (B.imag - A.imag) * (C.real - A.real)
+
+
 
 # Check if line segments AB and CD intersect
 def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+
 
 
 def closest_point_to_segment(point, segment, threshold=0.5):
@@ -166,27 +187,18 @@ class ArmConfiguration:
         self.arm_config = arm_config
         self.obstacle_config = obstacle_config
         
-        
-        
-    # @staticmethod
-    # def calculate_segments(config, arm_config):
-        
-    #     start_point = complex(0, 0)
-    #     segments = []
-        
-    #     parent_angle = 0
-    #     for angle, arm in zip(config, arm_config):
-    #         angle_degrees = STEP_INT * angle
-    #         angle_radians = parent_angle + (angle_degrees * np.pi / 180)
-    #         end_point = start_point + arm['length'] * np.exp(1j * angle_radians)
-    #         parent_angle = angle_radians - np.pi
-    #         segments.append((start_point, end_point))
-    #         start_point = end_point
-        
-    #     return segments
-    
-    
 
+
+    def _validate_config(self, indices_chunk):
+        results_chunk = []
+        for idx in indices_chunk:
+            value = int(not self.self_intersect(idx)) # Your current logic here
+            results_chunk.append((idx, value))
+        return results_chunk
+
+        
+    
+    
     def calculate_segments(self, config):
         
         start_point = complex(0, 0)
@@ -195,7 +207,7 @@ class ArmConfiguration:
         parent_angle = 0
         for angle, arm in zip(config, self.arm_config):
             angle_degrees = STEP_INT * angle
-            angle_radians = parent_angle + (angle_degrees * np.pi / 180)
+            angle_radians = parent_angle + (angle_degrees * DEGREES_TO_RADIANS)
             end_point = start_point + arm['length'] * np.exp(1j * angle_radians)
             parent_angle = angle_radians - np.pi
             segments.append((start_point, end_point))
@@ -203,47 +215,7 @@ class ArmConfiguration:
         
         return segments
     
-    
-    
-    # @staticmethod
-    # def calculate_valid_space(arm_config):
-    #     # This method should calculate and return the valid configuration space (c_space) for the given arm configuration.
-    #     # This could involve iterating through all possible configurations, validating them, and then marking them as valid/invalid.
-        
-    #     num_arms = len(arm_config)
-    
-    #     # create c-space grid
-    #     c_space = np.ones((DEG_STEP,) * num_arms, dtype=int)
-            
-    #     for arm_idx, arm in enumerate(arm_config):
-            
-    #         angle_limit = arm['angle-limit']
-            
-    #         min_angle = round((angle_limit / 360) * DEG_STEP)
-            
-    #         max_angle = DEG_STEP - min_angle
 
-    #         slices = [slice(None)] * num_arms
-
-    #         # Slice from the start of the array up to min_angle (not inclusive)
-    #         slices[arm_idx] = slice(0, min_angle)
-    #         c_space[tuple(slices)] = 0
-            
-    #         # Slice from max_angle to the end of the array
-    #         slices[arm_idx] = slice(max_angle, None)
-    #         c_space[tuple(slices)] = 0
-            
-            
-    #     # Get indices where c_space is 1
-    #     indices = np.argwhere(c_space == 1)
-
-    #     # Now, loop through these indices and validate
-    #     for idx in indices:
-    #         if ArmConfiguration.self_intersect(idx, arm_config):
-    #             c_space[tuple(idx)] = 0
-                
-    #     return c_space
-    
 
     def calculate_valid_space(self):
         # This method should calculate and return the valid configuration space (c_space) for the given arm configuration.
@@ -253,53 +225,48 @@ class ArmConfiguration:
     
         # create c-space grid
         c_space = np.ones((DEG_STEP,) * num_arms, dtype=int)
-            
+
+
         for arm_idx, arm in enumerate(self.arm_config):
-            
             angle_limit = arm['angle-limit']
-            
             min_angle = round((angle_limit / 360) * DEG_STEP)
-            
             max_angle = DEG_STEP - min_angle
+            c_space[arm_idx, 0:min_angle] = 0
+            c_space[arm_idx, max_angle:] = 0
 
-            slices = [slice(None)] * num_arms
 
-            # Slice from the start of the array up to min_angle (not inclusive)
-            slices[arm_idx] = slice(0, min_angle)
-            c_space[tuple(slices)] = 0
             
-            # Slice from max_angle to the end of the array
-            slices[arm_idx] = slice(max_angle, None)
-            c_space[tuple(slices)] = 0
             
             
         # Get indices where c_space is 1
         indices = np.argwhere(c_space == 1)
 
-        # Now, loop through these indices and validate
-        for idx in indices:
-            if self.self_intersect(idx):
-                c_space[tuple(idx)] = 0
-                
+        
+        indices_chunks = np.array_split(indices, cpu_count())
+
+    
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+            results_chunks = list(executor.map(self._validate_config, indices_chunks))
+
+    
+    
+        # #chunk_size = len(indices) // cpu_count() + 1  # This ensures you have enough chunks
+        # with Pool(processes=cpu_count()) as pool:
+        #     results_chunks = pool.map(self._validate_config, indices_chunks) #chunks(indices, chunk_size))
+
+        # Flatten the results and populate the c_space
+        for results in results_chunks:
+            for idx, value in results:
+                c_space[tuple(idx)] = value
+
         return c_space
+
     
     
-    # @staticmethod
-    # def plot_arm_configuration(config, arm_config):
-    #     fig, ax = plt.subplots()
-        
-    #     for segment in ArmConfiguration.calculate_segments(config, arm_config):
-    #         real_parts = [c.real for c in segment]
-    #         imag_parts = [c.imag for c in segment]
-    #         ax.plot(real_parts, imag_parts, 'o-')
-        
-    #     max_arm_length = sum([arm['length'] for arm in arm_config])
-    #     ax.set_xlim(-max_arm_length, max_arm_length)
-    #     ax.set_ylim(-max_arm_length, max_arm_length)
-    #     ax.grid(True)
-    #     ax.set_aspect('equal', 'box')
-    #     plt.show()
-        
+
+    
 
     def plot_arm_configuration(self, config):
         fig, ax = plt.subplots()
@@ -316,20 +283,6 @@ class ArmConfiguration:
         ax.set_aspect('equal', 'box')
         plt.show()
         
-        
-    # @staticmethod
-    # def intersects_obstacle(segment, obstacles):
-        
-    #     for obstacle in obstacles:
-    #         if intersect(segment[0], segment[1], obstacle[0], obstacle[1]):
-    #             return True
-            
-    #         for point in segment:
-    #             if closest_point_to_segment(point, obstacle):
-    #                 return True
-    
-    #     return False
-    
 
     def intersects_obstacle(self, segment):
         
@@ -343,24 +296,6 @@ class ArmConfiguration:
     
         return False
         
-        
-    # @staticmethod
-    # def self_intersect(config, arm_config):
-        
-    #     segments = ArmConfiguration.calculate_segments(config, arm_config)
-                    
-    #     # Check if any two segments intersect
-    #     for i in range(len(segments) - 1):  # no need to check the last segment against others
-    #         for j in range(i + 2, len(segments)):  # Start from i+2 to skip the next consecutive segment
-    #             if intersect(segments[i][0], segments[i][1], segments[j][0], segments[j][1]):
-    #                 return True
-
-    #     # Check if any segment intersects with obstacles
-    #     for seg in segments[1:]:   # we dont need to check the first one
-    #         if ArmConfiguration.intersects_obstacle(seg, obstacle_segments):
-    #             return True
-        
-    #     return False
     
 
     def self_intersect(self, config):
@@ -381,12 +316,6 @@ class ArmConfiguration:
         return False
 
 
-
-    # @staticmethod
-    # def validate(config, arm_config):
-    #     if ArmConfiguration.self_intersect(config, arm_config):
-    #         raise ValueError("Arm configuration has self-intersections")
-        
 
     def validate(self, config):
         if self.self_intersect(config):
@@ -503,12 +432,6 @@ if __name__ == "__main__":
     random_configs = [(32, 62, 21), (33, 26, 51), (30, 18, 34), (60, 45, 58), (40, 51, 65), (4, 7, 22), (54, 57, 36), (40, 68, 34), (57, 58, 43), (22, 26, 38)]
     
     # random_configs = [(30//STEP_INT, 60//STEP_INT, 60//STEP_INT), 
-    #                   (20//STEP_INT, 340//STEP_INT, 20//STEP_INT),
-    #                   (340//STEP_INT, 20//STEP_INT, 20//STEP_INT),
-    #                   (20//STEP_INT, 20//STEP_INT, 340//STEP_INT),
-    #                   (340//STEP_INT, 340//STEP_INT, 20//STEP_INT),
-    #                   (20//STEP_INT, 340//STEP_INT, 340//STEP_INT),
-    #                   (340//STEP_INT, 20//STEP_INT, 340//STEP_INT),
     #                   (340//STEP_INT, 340//STEP_INT, 340//STEP_INT)]
     
 
