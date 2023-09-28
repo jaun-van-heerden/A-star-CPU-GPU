@@ -13,8 +13,6 @@ def main(arm):
     # Sample test calls of your functions can be placed here for profiling.
     # For instance:
     
-
-
     c_space = arm.calculate_valid_space()
     
     return c_space
