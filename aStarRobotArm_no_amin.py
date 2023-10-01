@@ -1,5 +1,7 @@
 import numpy as np
 from hash_func import hash_cspace
+import pstats
+from io import StringIO
 
 def ccw(A, B, C):
     return (C.imag - A.imag) * (B.real - A.real) > (B.imag - A.imag) * (C.real - A.real)
@@ -106,7 +108,17 @@ if __name__ == "__main__":
     pr = cProfile.Profile()
     pr.enable()
 
-    calculate_cspace(test_setup)
+    cspace = calculate_cspace(test_setup)
 
     pr.disable()
     pr.dump_stats(f"profile_seq_{STEP}.prof")
+
+    print(hash_cspace(cspace))
+
+    np.save('cspace_seq.npy', cspace)
+
+    s = StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    #print(s.getvalue())

@@ -3,7 +3,8 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
 from hash_func import hash_cspace
-
+import pstats
+from io import StringIO
 
 
 def ccw(A, B, C):
@@ -13,8 +14,6 @@ def ccw(A, B, C):
 # Check if line segments AB and CD intersect
 def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
-
-
 
 
 
@@ -101,9 +100,6 @@ def calculate_cspace_parallel(setup):
     
     indices_chunks = np.array_split(indices, cpu_count())
 
-    # with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-    #     results_chunks = list(executor.map(partial(wrapped_validate_config, setup), indices_chunks))
-
     # Here, we're zipping setup with each indices_chunk to create a tuple
     args_list = [(chunk, setup) for chunk in indices_chunks]
 
@@ -143,8 +139,18 @@ if __name__ == "__main__":
     pr = cProfile.Profile()
     pr.enable()
     
-    calculate_cspace_parallel(test_setup)
+    cspace = calculate_cspace_parallel(test_setup)
 
     pr.disable()
     pr.dump_stats(f"profile_par_{STEP}.prof")
+
+    print(hash_cspace(cspace))
+
+    np.save('cspace_par.npy', cspace)
+
+    s = StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    #print(s.getvalue())
         
