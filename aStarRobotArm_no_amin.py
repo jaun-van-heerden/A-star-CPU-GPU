@@ -1,4 +1,5 @@
 import numpy as np
+from hash_func import hash_cspace
 
 def ccw(A, B, C):
     return (C.imag - A.imag) * (B.real - A.real) > (B.imag - A.imag) * (C.real - A.real)
@@ -81,6 +82,11 @@ def calculate_cspace(setup):
 
 
 if __name__ == "__main__":
+    
+    import cProfile
+
+    STEP = 10
+
     test_setup = {
         "arm_config" :[
             {'name': 'arm01', 'length': 1, 'angle-limit': 10},
@@ -92,11 +98,15 @@ if __name__ == "__main__":
             (complex(-1, -2), complex(-1, -2)),
             (complex(1, 1), complex(3, 1))
         ],
-        "step_int": 2,
-        "deg_step": 360//2,
+        "step_int": STEP,
+        "deg_step": 360//STEP,
         "degrees_to_radians": 0.01745329251 
     }
 
+    pr = cProfile.Profile()
+    pr.enable()
+
     calculate_cspace(test_setup)
 
-        
+    pr.disable()
+    pr.dump_stats(f"profile_seq_{STEP}.prof")

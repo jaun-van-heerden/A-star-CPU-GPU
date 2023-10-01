@@ -1,7 +1,9 @@
 import numpy as np
-from functools import partial
+#from functools import partial
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
+from hash_func import hash_cspace
+
 
 
 def ccw(A, B, C):
@@ -13,13 +15,26 @@ def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
 
+
+
+
 # MAIN MULTIPROCESS FUNCTION
-def validate_config(indices_chunk, setup):
+
+
+def validate_config(args):
+    indices_chunk, setup = args  # Unpack the tuple
     results_chunk = []
     for idx in indices_chunk:
-        value = int(not self_intersect(idx, setup)) # Your current logic here
+        value = int(not self_intersect(idx, setup))  # Your current logic here
         results_chunk.append((idx, value))
     return results_chunk
+
+# def validate_config(indices_chunk, setup):
+#     results_chunk = []
+#     for idx in indices_chunk:
+#         value = int(not self_intersect(idx, setup)) # Your current logic here
+#         results_chunk.append((idx, value))
+#     return results_chunk
 
 
 def calculate_segments(config, setup):
@@ -66,10 +81,6 @@ def self_intersect(config, setup):
     return False
 
 
-def wrapped_validate_config(setup, indices_chunk):
-    return validate_config(indices_chunk, setup)
-
-
 def calculate_cspace_parallel(setup):
     
     num_arms = len(setup["arm_config"])
@@ -90,8 +101,14 @@ def calculate_cspace_parallel(setup):
     
     indices_chunks = np.array_split(indices, cpu_count())
 
+    # with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+    #     results_chunks = list(executor.map(partial(wrapped_validate_config, setup), indices_chunks))
+
+    # Here, we're zipping setup with each indices_chunk to create a tuple
+    args_list = [(chunk, setup) for chunk in indices_chunks]
+
     with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-        results_chunks = list(executor.map(partial(wrapped_validate_config, setup), indices_chunks))
+        results_chunks = list(executor.map(validate_config, args_list))
 
     # Flatten the results and populate the c_space
     for results in results_chunks:
@@ -102,6 +119,10 @@ def calculate_cspace_parallel(setup):
 
 
 if __name__ == "__main__":
+
+    import cProfile
+
+    STEP = 10
     
     test_setup = {
         "arm_config" :[
@@ -114,10 +135,16 @@ if __name__ == "__main__":
             (complex(-1, -2), complex(-1, -2)),
             (complex(1, 1), complex(3, 1))
         ],
-        "step_int": 2,
-        "deg_step": 360//2,
+        "step_int": STEP,
+        "deg_step": 360//STEP,
         "degrees_to_radians": 0.01745329251 
     }
+
+    pr = cProfile.Profile()
+    pr.enable()
     
     calculate_cspace_parallel(test_setup)
+
+    pr.disable()
+    pr.dump_stats(f"profile_par_{STEP}.prof")
         
