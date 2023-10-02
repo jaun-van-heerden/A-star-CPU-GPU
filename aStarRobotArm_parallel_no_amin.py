@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     import cProfile
 
-    STEP = 10
+    STEP = 30
     
     test_setup = {
         "arm_config" :[

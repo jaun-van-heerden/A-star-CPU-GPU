@@ -28,7 +28,25 @@ def visualize_dim_cspaces(cspace1, cspace2, title1='cspace_seq', title2='cspace_
 
 # Example usage
 cspace_seq = np.load('cspace_seq.npy')
-cspace_par = np.load('cspace_par.npy')
+cspace_par = np.load('cspace_vec.npy')
 
 visualize_dim_cspaces(cspace_seq, cspace_par)
 
+
+
+
+mean_seq = np.mean(cspace_seq)
+mean_par = np.mean(cspace_par)
+
+if np.isclose(mean_seq, mean_par, atol=1e-6):
+    print("Means are close.")
+else:
+    print("Means are not close.")
+
+var_seq = np.var(cspace_seq)
+var_par = np.var(cspace_par)
+
+if np.isclose(var_seq, var_par, atol=1e-6):
+    print("Variances are close.")
+else:
+    print("Variances are not close.")

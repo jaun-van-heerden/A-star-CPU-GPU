@@ -27,14 +27,6 @@ def calculate_segments(config, setup):
     return segments
 
 
-def intersects_obstacle(segment, setup):
-    
-    for obstacle in setup["obstacle_config"]:
-        if intersect(segment[0], segment[1], obstacle[0], obstacle[1]):
-            return True
-
-    return False
-
 def self_intersect(config, setup):
     
     segments = calculate_segments(config, setup)
@@ -44,11 +36,6 @@ def self_intersect(config, setup):
         for j in range(i + 2, len(segments)):  # Start from i+2 to skip the next consecutive segment
             if intersect(segments[i][0], segments[i][1], segments[j][0], segments[j][1]):
                 return True
-
-    # Check if any segment intersects with obstacles
-    for seg in segments[1:]:   # we dont need to check the first one
-        if intersects_obstacle(seg, setup):
-            return True
     
     return False
 
@@ -65,12 +52,12 @@ def calculate_cspace(setup):
     # create c-space grid
     c_space = np.ones((setup["deg_step"],) * num_arms, dtype=int)
 
-    for arm_idx, arm in enumerate(setup["arm_config"]):
-        angle_limit = arm['angle-limit']
-        min_angle = round((angle_limit / 360) * setup["deg_step"])
-        max_angle = setup["deg_step"] - min_angle
-        c_space[arm_idx, 0:min_angle] = 0
-        c_space[arm_idx, max_angle:] = 0
+    # for arm_idx, arm in enumerate(setup["arm_config"]):
+    #     angle_limit = arm['angle-limit']
+    #     min_angle = round((angle_limit / 360) * setup["deg_step"])
+    #     max_angle = setup["deg_step"] - min_angle
+    #     c_space[arm_idx, 0:min_angle] = 0
+    #     c_space[arm_idx, max_angle:] = 0
 
         
     # Get indices where c_space is 1
@@ -87,18 +74,13 @@ if __name__ == "__main__":
     
     import cProfile
 
-    STEP = 30
+    STEP = 90
 
     test_setup = {
         "arm_config" :[
             {'name': 'arm01', 'length': 1, 'angle-limit': 10},
             {'name': 'arm02', 'length': 1, 'angle-limit': 10},
             {'name': 'arm03', 'length': 1, 'angle-limit': 10}
-        ],
-        "obstacle_config": [
-            (complex(-2, 1), complex(-2, 0)), 
-            (complex(-1, -2), complex(-1, -2)),
-            (complex(1, 1), complex(3, 1))
         ],
         "step_int": STEP,
         "deg_step": 360//STEP,

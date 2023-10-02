@@ -85,18 +85,13 @@ def calculate_cspace_parallel(setup):
     # create c-space grid
     c_space = np.ones((setup["deg_step"],) * num_arms, dtype=int)
 
-    for arm_idx, arm in enumerate(setup["arm_config"]):
-        angle_limit = arm['angle-limit']
-        min_angle = round((angle_limit / 360) * setup["deg_step"])
-        max_angle = setup["deg_step"] - min_angle
-        c_space[arm_idx, 0:min_angle] = 0
-        c_space[arm_idx, max_angle:] = 0
+
 
         
     # Get indices where c_space is 1
-    indices = np.argwhere(c_space == 1)
+    #indices = np.argwhere(c_space == 1)
     
-    indices_chunks = np.array_split(indices, cpu_count())
+    indices_chunks = np.array_split(c_space, cpu_count())
 
     # Here, we're zipping setup with each indices_chunk to create a tuple
     args_list = [(chunk, setup) for chunk in indices_chunks]
@@ -109,6 +104,14 @@ def calculate_cspace_parallel(setup):
         for idx, value in results:
             c_space[tuple(idx)] = value
 
+
+    for arm_idx, arm in enumerate(setup["arm_config"]):
+        angle_limit = arm['angle-limit']
+        min_angle = round((angle_limit / 360) * setup["deg_step"])
+        max_angle = setup["deg_step"] - min_angle
+        c_space[arm_idx, 0:min_angle] = 0
+        c_space[arm_idx, max_angle:] = 0
+
     return c_space
 
 
@@ -117,18 +120,13 @@ if __name__ == "__main__":
 
     import cProfile
 
-    STEP = 10
+    STEP = 5
     
     test_setup = {
         "arm_config" :[
             {'name': 'arm01', 'length': 1, 'angle-limit': 10},
             {'name': 'arm02', 'length': 1, 'angle-limit': 10},
             {'name': 'arm03', 'length': 1, 'angle-limit': 10}
-        ],
-        "obstacle_config": [
-            (complex(-2, 1), complex(-2, 0)), 
-            (complex(-1, -2), complex(-1, -2)),
-            (complex(1, 1), complex(3, 1))
         ],
         "step_int": STEP,
         "deg_step": 360//STEP,
