@@ -11,15 +11,19 @@ def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
 def calculate_segments(config, setup):
+
+    #print(config * 5)
+    if np.array_equal(config, [9, 7, 5]):
+        print('catch')
     
     start_point = complex(0, 0)
     segments = []
     
     parent_angle = 0
-    for angle, arm in zip(config, setup["arm_config"]):
+    for angle in config:
         angle_degrees = setup["step_int"] * angle
         angle_radians = parent_angle + (angle_degrees * np.pi / 180)
-        end_point = start_point + arm['length'] * np.exp(1j * angle_radians)
+        end_point = start_point + np.exp(1j * angle_radians)
         parent_angle = angle_radians - np.pi
         segments.append((start_point, end_point))
         start_point = end_point
@@ -74,13 +78,13 @@ if __name__ == "__main__":
     
     import cProfile
 
-    STEP = 90
+    STEP = 10
 
     test_setup = {
         "arm_config" :[
-            {'name': 'arm01', 'length': 1, 'angle-limit': 10},
-            {'name': 'arm02', 'length': 1, 'angle-limit': 10},
-            {'name': 'arm03', 'length': 1, 'angle-limit': 10}
+            {'angle-limit': 10},
+            {'angle-limit': 10},
+            {'angle-limit': 10}
         ],
         "step_int": STEP,
         "deg_step": 360//STEP,

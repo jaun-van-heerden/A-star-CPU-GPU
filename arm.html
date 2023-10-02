@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robotic Arm Visualization</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+</head>
+<body>
+
+<h1>Robotic Arm Visualization</h1>
+
+<form id="inputForm">
+    <label for="armCount">Number of Arms:</label>
+    <input type="number" id="armCount" name="armCount" min="1" value="1">
+    <button type="button" onclick="createInputs()">Set</button>
+</form>
+
+<div id="complexInputs"></div>
+
+<svg id="armCanvas" width="500" height="500"></svg>
+
+<script>
+    function createInputs() {
+        const armCount = document.getElementById("armCount").value;
+        const inputDiv = document.getElementById("complexInputs");
+        inputDiv.innerHTML = '';
+
+        for (let i = 0; i < armCount; i++) {
+            inputDiv.innerHTML += `
+            <label for="real${i}">Arm ${i + 1} - Real:</label>
+            <input type="number" id="real${i}" name="real${i}" value="0" oninput="drawArm()">
+            <label for="imaginary${i}">Imaginary:</label>
+            <input type="number" id="imaginary${i}" name="imaginary${i}" value="0" oninput="drawArm()">
+            <br>
+            `;
+        }
+        drawArm();  // Draw initial state
+    }
+
+    function drawArm() {
+        const armCount = document.getElementById("armCount").value;
+        const canvas = d3.select("#armCanvas");
+        canvas.selectAll("*").remove();
+
+        let points = [{ x: 0, y: 0 }];
+        let totalLength = 0;
+
+        for (let i = 0; i < armCount; i++) {
+            const real = parseFloat(document.getElementById(`real${i}`).value);
+            const imaginary = parseFloat(document.getElementById(`imaginary${i}`).value);
+            totalLength += Math.sqrt(real * real + imaginary * imaginary);
+
+            const lastPoint = points[points.length - 1];
+            const newPoint = {
+                x: lastPoint.x + real,
+                y: lastPoint.y + imaginary
+            };
+            points.push(newPoint);
+        }
+
+        const scaleFactor = 500 / (totalLength * 1.2);
+        points = points.map(p => ({ x: p.x * scaleFactor + 250, y: -p.y * scaleFactor + 250 }));
+
+        for (let i = 1; i < points.length; i++) {
+            const x1 = points[i - 1].x, y1 = points[i - 1].y;
+            const x2 = points[i].x, y2 = points[i].y;
+            const dx = x2 - x1, dy = y2 - y1;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+            canvas.append("line")
+                .attr("x1", x1)
+                .attr("y1", y1)
+                .attr("x2", x2)
+                .attr("y2", y2)
+                .attr("stroke-width", 2)
+                .attr("stroke", "black");
+
+            canvas.append("text")
+                .attr("x", (x1 + x2) / 2)
+                .attr("y", (y1 + y2) / 2 - 5)
+                .attr("font-size", "12px")
+                .text(angle.toFixed(2) + "°");
+        }
+    }
+
+    createInputs();
+</script>
+
+</body>
+</html>

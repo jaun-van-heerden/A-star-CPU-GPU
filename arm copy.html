@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robotic Arm Visualization</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+</head>
+<body>
+
+<h1>Robotic Arm Visualization</h1>
+
+<form id="inputForm">
+    <label for="armCount">Number of Arms:</label>
+    <input type="number" id="armCount" name="armCount" min="1" value="3">
+    <button type="button" onclick="createSliders()">Set</button>
+</form>
+
+<div id="angleSliders"></div>
+
+<svg id="armCanvas" width="600" height="600"></svg>
+
+<table id="coordinateTable">
+    <thead>
+        <tr>
+            <th>Arm</th>
+            <th>Start X</th>
+            <th>Start Y</th>
+            <th>End X</th>
+            <th>End Y</th>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+
+<script>
+    function createSliders() {
+        const armCount = document.getElementById("armCount").value;
+        const sliderDiv = document.getElementById("angleSliders");
+        sliderDiv.innerHTML = '';
+
+        for (let i = 0; i < armCount; i++) {
+            sliderDiv.innerHTML += `
+            <label for="angle${i}">Angle for Arm ${i + 1}:</label>
+            <input type="range" id="angle${i}" name="angle${i}" min="0" max="360" value="0" oninput="drawArm()">
+            <br>
+            `;
+        }
+        drawArm();
+    }
+
+    function drawArm() {
+        const armCount = parseInt(document.getElementById("armCount").value, 10);
+        const canvas = d3.select("#armCanvas");
+        canvas.selectAll("*").remove();
+
+        let points = [{ x: 0, y: 0 }];
+        let totalAngle = 0;
+
+        for (let i = 0; i < armCount; i++) {
+            const angle = parseFloat(document.getElementById(`angle${i}`).value);
+            totalAngle += angle;
+            const angleRad = totalAngle * Math.PI / 180;
+            const lastPoint = points[points.length - 1];
+            const newPoint = {
+                x: lastPoint.x + Math.cos(angleRad),
+                y: lastPoint.y + Math.sin(angleRad)
+            };
+            points.push(newPoint);
+        }
+
+        const scaleFactor = 100;
+        points = points.map(p => ({ x: p.x * scaleFactor + 300, y: -p.y * scaleFactor + 300 }));
+
+        for (let i = 1; i < points.length; i++) {
+            const x1 = points[i - 1].x, y1 = points[i - 1].y;
+            const x2 = points[i].x, y2 = points[i].y;
+
+            canvas.append("line")
+                .attr("x1", x1)
+                .attr("y1", y1)
+                .attr("x2", x2)
+                .attr("y2", y2)
+                .attr("stroke-width", 2)
+                .attr("stroke", "black");
+
+            // Show angle at the bend
+            const angleText = parseFloat(document.getElementById(`angle${i - 1}`).value);
+            canvas.append("text")
+                .attr("x", x1 + 10)
+                .attr("y", y1 + 10)
+                .text(`${angleText.toFixed(1)}°`);
+        }
+
+        // Populate the coordinate table
+        const tableBody = document.getElementById("coordinateTable").getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = ''; // clear existing rows
+        for (let i = 1; i < points.length; i++) {
+            const row = tableBody.insertRow();
+            const cell0 = row.insertCell(0);
+            const cell1 = row.insertCell(1);
+            const cell2 = row.insertCell(2);
+            const cell3 = row.insertCell(3);
+            const cell4 = row.insertCell(4);
+            cell0.innerHTML = `Arm ${i}`;
+            cell1.innerHTML = (points[i - 1].x - 300).toFixed(2);
+            cell2.innerHTML = (points[i - 1].y - 300).toFixed(2);
+            cell3.innerHTML = (points[i].x - 300).toFixed(2);
+            cell4.innerHTML = (points[i].y - 300).toFixed(2);
+        }
+    }
+
+    createSliders();
+</script>
+</body>
+</html>

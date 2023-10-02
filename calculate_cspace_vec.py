@@ -4,57 +4,6 @@ import pstats
 from io import StringIO
 
 
-# def generate_indices(shape):
-#     grid = np.meshgrid(*[np.arange(dim) for dim in shape], indexing='ij')
-#     return np.stack(grid, axis=-1)
-
-# def ccw_vec(A, B, C):
-#     return (C.imag - A.imag) * (B.real - A.real) > (B.imag - A.imag) * (C.real - A.real)
-
-# def intersect_vec(A, B, C, D):
-#     return np.logical_and(ccw_vec(A, C, D) != ccw_vec(B, C, D),
-#                           ccw_vec(A, B, C) != ccw_vec(A, B, D))
-
-# def calculate_segments_vec(configs, setup):
-#     num_arms = len(setup["arm_config"])
-#     segments = np.zeros((num_arms, 2), dtype=np.complex_)
-#     start_point = 0j
-#     parent_angle = 0
-
-#     for i, (angle_radians, arm) in enumerate(zip(configs, setup["arm_config"])):
-#         #angle_degrees = setup["step_int"] * angle
-#         angle_radians = parent_angle + angle_radians #np.radians(angle_degrees)
-#         end_point = start_point + arm['length'] * np.exp(1j * angle_radians)
-#         segments[i, :] = (start_point, end_point)
-#         parent_angle = angle_radians - np.pi
-#         start_point = end_point
-
-#     return segments
-
-# def self_intersect_vec(config, setup):
-#     segments = calculate_segments_vec(config, setup)
-#     A, B = segments[:-1, 0], segments[:-1, 1]
-#     C, D = segments[1:, 0], segments[1:, 1]
-#     intersect_results = intersect_vec(A, B, C, D)
-#     return np.any(intersect_results)
-
-
-# def self_intersect_batch(configs, setup):
-#     intersects = np.zeros(configs.shape[0], dtype=bool)
-#     for i, config in enumerate(configs):
-#         segments = calculate_segments_vec(config, setup)
-#         A, B = segments[:-1, 0], segments[:-1, 1]
-#         C, D = segments[1:, 0], segments[1:, 1]
-#         intersects[i] = np.any(intersect_vec(A, B, C, D))
-#     return intersects
-
-
-
-# # Vectorized self_intersect function
-# def vectorized_self_intersect(configs, setup):
-#     # Perform your collision logic here
-#     calculate_segments_vec(configs, setup)
-
 def ccw(A, B, C):
     return (np.imag(C) - np.imag(A)) * (np.real(B) - np.real(A)) > (np.imag(B) - np.imag(A)) * (np.real(C) - np.real(A))
 
@@ -88,11 +37,18 @@ def segments_vec(mesh):
     segments = np.zeros(segments_shape, dtype=np.complex_)
 
     # Calculate the cumulative sum of angles along the last axis (i.e., for each arm)
-    angle_radians_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64)
+    angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
+    
+    angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180) # convert to radians
 
     # Adjust for parent_angle_offsets using broadcasting
-    parent_angle_offsets = np.pi * np.arange(num_arms)
-    angle_radians_cumsum -= parent_angle_offsets[np.newaxis, np.newaxis, np.newaxis, :]
+    # parent_angle_offsets = np.pi * np.arange(num_arms)
+    # angle_radians_cumsum -= parent_angle_offsets[np.newaxis, np.newaxis, np.newaxis, :]
+
+    parent_angle = 0.0
+    for i in range(num_arms):
+        angle_radians_cumsum[..., i] += parent_angle  # Add parent_angle
+        parent_angle -= np.pi  # Update parent_angle
 
     # Calculate the end points for each segment
     end_points = np.exp(1j * angle_radians_cumsum).cumsum(axis=-1)
@@ -104,29 +60,6 @@ def segments_vec(mesh):
     return segments
 
 
-# def segments_vec(config):
-#     num_arms = len(config)
-#     segments = np.zeros((num_arms, 2), dtype=np.complex_)
-
-#     # Compute the cumulative sum of angles in a more memory-efficient manner
-#     angle_radians_cumsum = np.cumsum(config, dtype=np.float64)
-
-#     # Use in-place operations to adjust for parent_angle_offsets
-#     parent_angle_offsets = np.pi * np.arange(num_arms)
-#     np.subtract(angle_radians_cumsum, parent_angle_offsets, out=angle_radians_cumsum)
-
-#     # Compute end_points with cumulative sum to save memory
-#     end_points = np.exp(1j * angle_radians_cumsum).cumsum()
-
-#     # Directly populate the segments array without extra array creation
-#     segments[:, 0] = np.concatenate(([0j], end_points[:-1]))
-#     segments[:, 1] = end_points
-
-#     return segments
-
-
-
-
 
 def calculate_cspace_vec(setup):
 
@@ -135,20 +68,13 @@ def calculate_cspace_vec(setup):
     c_space_dim = (setup["deg_step"],) * num_arms
     c_space = np.ones(c_space_dim, dtype=int)
 
-    slices = setup["deg_step"]
-
-    slice_objects = [slice(0, slices) for _ in range(num_arms)]
-
-    grid = np.mgrid[slice_objects] * 0.0174533 # angle already in radians
-
-
     # # Generate meshgrid indices
     mesh = np.meshgrid(np.arange(c_space.shape[0]), 
                                         np.arange(c_space.shape[1]), 
                                         np.arange(c_space.shape[2]), 
                                         indexing='ij')
 
-    index_tuples = np.stack(mesh, axis=-1) * 0.0174533
+    index_tuples = np.stack(mesh, axis=-1) * setup["step_int"] #* (np.pi / 180) # 0.0174533
 
     segments = segments_vec(index_tuples)
     c_space = check_intersection(segments)
@@ -171,7 +97,7 @@ if __name__ == "__main__":
 
     import cProfile
 
-    STEP = 90
+    STEP = 10
     test_setup = {
         "arm_config": [
             {'name': 'arm01', 'length': 1, 'angle-limit': 10},
