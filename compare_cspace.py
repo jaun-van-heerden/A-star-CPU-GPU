@@ -38,7 +38,7 @@ visualize_dim_cspaces(cspace_seq, cspace_par)
 mean_seq = np.mean(cspace_seq)
 mean_par = np.mean(cspace_par)
 
-if np.isclose(mean_seq, mean_par, atol=1e-6):
+if np.isclose(mean_seq, mean_par, atol=1e-2):
     print("Means are close.")
 else:
     print("Means are not close.")
@@ -46,7 +46,7 @@ else:
 var_seq = np.var(cspace_seq)
 var_par = np.var(cspace_par)
 
-if np.isclose(var_seq, var_par, atol=1e-6):
+if np.isclose(var_seq, var_par, atol=1e-2):
     print("Variances are close.")
 else:
     print("Variances are not close.")

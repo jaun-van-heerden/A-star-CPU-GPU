@@ -11,8 +11,14 @@ def check_intersection(segments):
     num_arms = segments.shape[-2]
     no_intersect = np.ones(segments.shape[:-2], dtype=np.int8)
 
+
     for i in range(num_arms):
-        for j in range(i + 1, num_arms):
+        for j in range(i + 2, num_arms):  # Start from i+2 to skip checking consecutive arms
+    
+
+
+    # for i in range(num_arms):
+    #     for j in range(i + 1, num_arms):
             A, B = segments[..., i, 0], segments[..., i, 1]
             C, D = segments[..., j, 0], segments[..., j, 1]
             
@@ -29,54 +35,19 @@ def check_intersection(segments):
     return no_intersect
 
 
-# def segments_vec(mesh):
-
-#     # Create an array to hold segments with the same shape as the mesh, but with an added dimension for segment endpoints
-#     segments_shape = mesh.shape + (2,)
-#     segments = np.zeros(segments_shape, dtype=np.complex_)
-
-#     # Calculate the cumulative sum of angles along the last axis (i.e., for each arm)
-#     angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
-    
-#     angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180) # convert to radians
-
-#     # Round to 3 decimal places
-#     angle_radians_cumsum = np.round(angle_radians_cumsum, 2)
-
-#     # Calculate the end points for each segment
-#     end_points = np.exp(1j * angle_radians_cumsum).cumsum(axis=-1)
-    
-#      # Round to 3 decimal places
-#     end_points = np.round(end_points, 2)
-
-#     # Fill in the segment coordinates
-#     segments[..., 0] = np.concatenate([np.zeros(mesh.shape[:-1] + (1,), dtype=np.complex_), end_points[..., :-1]], axis=-1)
-#     segments[..., 1] = end_points
-    
-#     np.save("segments_vec.npy", segments)
-
-#     return segments
-
-
 def segments_vec(mesh):
     segments_shape = mesh.shape + (2,)
     segments = np.zeros(segments_shape, dtype=np.complex128)
 
     angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
     angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180)
-    
-    angle_radians_cumsum = np.round(angle_radians_cumsum, 2)
 
     end_points = np.exp(1j * angle_radians_cumsum).cumsum(axis=-1)
-    end_points = np.round(end_points.real, 2) + np.round(end_points.imag, 2) * 1j
 
     segments[..., 0] = np.concatenate([np.zeros(mesh.shape[:-1] + (1,), dtype=np.complex128), end_points[..., :-1]], axis=-1)
     segments[..., 1] = end_points
     
-    np.save("segments_vec.npy", segments)
     return segments
-
-
 
 
 
@@ -99,13 +70,13 @@ def calculate_cspace_vec(setup):
     c_space = check_intersection(segments)
 
 
-    # # Angle limit application
-    # for arm_idx, arm in enumerate(setup["arm_config"]):
-    #     angle_limit = arm['angle-limit']
-    #     min_angle = round((angle_limit / 360) * setup["deg_step"])
-    #     max_angle = setup["deg_step"] - min_angle
-    #     c_space[arm_idx, 0:min_angle] = 0
-    #     c_space[arm_idx, max_angle:] = 0
+    # Angle limit application
+    for arm_idx, arm in enumerate(setup["arm_config"]):
+        angle_limit = arm['angle-limit']
+        min_angle = round((angle_limit / 360) * setup["deg_step"])
+        max_angle = setup["deg_step"] - min_angle
+        c_space[arm_idx, 0:min_angle] = 0
+        c_space[arm_idx, max_angle:] = 0
 
     # Get indices where c_space is 1
     #indices = np.argwhere(c_space == 1)
@@ -142,7 +113,7 @@ if __name__ == "__main__":
     from display_segment import display_robot_arm
     
     # test
-    result = segments[30][30][30]
+    result = segments[35][27][15]
     
     print(result)
     
@@ -159,3 +130,17 @@ if __name__ == "__main__":
     sortby = 'cumulative'
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
+
+
+
+    # Find all zero points in the c-space
+    zero_indices = np.argwhere(cspace == 0)
+
+    # Randomly select one zero point
+    selected_zero_idx = zero_indices[np.random.randint(len(zero_indices))]
+
+    # Extract the segments using the indices
+    segments_for_zero = segments[tuple(selected_zero_idx)]
+
+    # Display the robot arm configuration for that point
+    display_robot_arm(segments_for_zero)

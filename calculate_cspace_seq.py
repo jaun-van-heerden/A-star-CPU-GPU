@@ -11,63 +11,40 @@ def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
 
-
-
-segment_hold = np.zeros([36, 36, 36, 3, 2], dtype=np.complex128)
-
-
-
 def calculate_segments(config, setup):
 
-    if np.array_equal(config, [9, 7, 5]):
-        print('catch')
-    
     start_point = complex(0, 0)
     segments = []
     
     total_angle = 0
     for angle in config:
         angle_degrees = setup["step_int"] * angle
-        
-        #angle_radians = total_angle + (angle_degrees * np.pi / 180)
+    
         total_angle = total_angle + (angle_degrees * np.pi / 180)
         
-        # round the angle_radians
-        total_angle = round(total_angle, 2)
-        
         end_point = start_point + np.exp(1j * total_angle)
-        
-        #end_point = round(end_point, 2)
-        end_point = round(end_point.real, 2) + round(end_point.imag, 2) * 1j
-        
-        #parent_angle = angle_radians - np.pi
+    
         segments.append((start_point, end_point))
         start_point = end_point
     
-    segment_hold[*config] = np.array(segments)
-    
     return segments
-
-
-
 
 
 def self_intersect(config, setup):
     
     segments = calculate_segments(config, setup)
                 
-    # Check if any two segments intersect
-    for i in range(len(segments) - 1):  # no need to check the last segment against others
-        for j in range(i + 2, len(segments)):  # Start from i+2 to skip the next consecutive segment
+    for i in range(len(segments) - 1):
+        for j in range(i + 2, len(segments)):  # Start from i+2 to skip checking consecutive arms
             if intersect(segments[i][0], segments[i][1], segments[j][0], segments[j][1]):
                 return True
-    
+
     return False
+
 
 def validate(config, setup):
     if self_intersect(config, setup):
         raise ValueError("Arm configuration has self-intersections")
-
 
 
 def calculate_cspace(setup):
@@ -77,12 +54,12 @@ def calculate_cspace(setup):
     # create c-space grid
     c_space = np.ones((setup["deg_step"],) * num_arms, dtype=int)
 
-    # for arm_idx, arm in enumerate(setup["arm_config"]):
-    #     angle_limit = arm['angle-limit']
-    #     min_angle = round((angle_limit / 360) * setup["deg_step"])
-    #     max_angle = setup["deg_step"] - min_angle
-    #     c_space[arm_idx, 0:min_angle] = 0
-    #     c_space[arm_idx, max_angle:] = 0
+    for arm_idx, arm in enumerate(setup["arm_config"]):
+        angle_limit = arm['angle-limit']
+        min_angle = round((angle_limit / 360) * setup["deg_step"])
+        max_angle = setup["deg_step"] - min_angle
+        c_space[arm_idx, 0:min_angle] = 0
+        c_space[arm_idx, max_angle:] = 0
 
         
     # Get indices where c_space is 1
@@ -115,18 +92,14 @@ if __name__ == "__main__":
     from display_segment import display_robot_arm
     
     # test
-    config = [30,30,30]
+    config = [35,27,15]
     
     result = calculate_segments(config, test_setup)
     
     print(result)
     display_robot_arm(result)
     
-    #input("HOLD")
-    
-    
-    
-    
+  
 
     pr = cProfile.Profile()
     pr.enable()
@@ -146,5 +119,18 @@ if __name__ == "__main__":
     ps.print_stats()
     #print(s.getvalue())
     
-    
-    np.save("segments_seq.npy", segment_hold)
+
+
+    import random
+    # Step 1: Randomly select a C-Space point with zero value
+    zero_indices = np.argwhere(cspace == 0)
+    if len(zero_indices) == 0:
+        print("No zero-valued points in the C-Space.")
+    else:
+        random_zero_idx = random.choice(zero_indices)
+        print(f"Randomly selected zero-valued C-Space point: {random_zero_idx}")
+        
+        # Step 2: Plot using display_robot_arm
+        random_segments = calculate_segments(random_zero_idx, test_setup)
+        print(f"Segments for the randomly selected zero-valued C-Space point: {random_segments}")
+        display_robot_arm(random_segments)

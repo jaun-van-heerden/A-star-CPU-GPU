@@ -1,8 +1,11 @@
 import numpy as np
 
 
-cspace_seq = np.load('segments_seq.npy')
-cspace_vec = np.load('segments_vec.npy')
+# cspace_seq = np.load('segments_seq.npy')
+# cspace_vec = np.load('segments_vec.npy')
+
+cspace_seq = np.load('cspace_seq.npy')
+cspace_vec = np.load('cspace_vec.npy')
 
 result = np.isclose(cspace_seq, cspace_vec, atol=1e-2, rtol=1e-2)
 
