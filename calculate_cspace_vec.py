@@ -29,35 +29,54 @@ def check_intersection(segments):
     return no_intersect
 
 
-def segments_vec(mesh):
-    num_arms = mesh.shape[-1]
+# def segments_vec(mesh):
 
-    # Create an array to hold segments with the same shape as the mesh, but with an added dimension for segment endpoints
-    segments_shape = mesh.shape + (2,)
-    segments = np.zeros(segments_shape, dtype=np.complex_)
+#     # Create an array to hold segments with the same shape as the mesh, but with an added dimension for segment endpoints
+#     segments_shape = mesh.shape + (2,)
+#     segments = np.zeros(segments_shape, dtype=np.complex_)
 
-    # Calculate the cumulative sum of angles along the last axis (i.e., for each arm)
-    angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
+#     # Calculate the cumulative sum of angles along the last axis (i.e., for each arm)
+#     angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
     
-    angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180) # convert to radians
+#     angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180) # convert to radians
 
-    # Adjust for parent_angle_offsets using broadcasting
-    # parent_angle_offsets = np.pi * np.arange(num_arms)
-    # angle_radians_cumsum -= parent_angle_offsets[np.newaxis, np.newaxis, np.newaxis, :]
+#     # Round to 3 decimal places
+#     angle_radians_cumsum = np.round(angle_radians_cumsum, 2)
 
-    parent_angle = 0.0
-    for i in range(num_arms):
-        angle_radians_cumsum[..., i] += parent_angle  # Add parent_angle
-        parent_angle -= np.pi  # Update parent_angle
+#     # Calculate the end points for each segment
+#     end_points = np.exp(1j * angle_radians_cumsum).cumsum(axis=-1)
+    
+#      # Round to 3 decimal places
+#     end_points = np.round(end_points, 2)
 
-    # Calculate the end points for each segment
+#     # Fill in the segment coordinates
+#     segments[..., 0] = np.concatenate([np.zeros(mesh.shape[:-1] + (1,), dtype=np.complex_), end_points[..., :-1]], axis=-1)
+#     segments[..., 1] = end_points
+    
+#     np.save("segments_vec.npy", segments)
+
+#     return segments
+
+
+def segments_vec(mesh):
+    segments_shape = mesh.shape + (2,)
+    segments = np.zeros(segments_shape, dtype=np.complex128)
+
+    angle_degrees_cumsum = np.cumsum(mesh, axis=-1, dtype=np.float64) 
+    angle_radians_cumsum = angle_degrees_cumsum * (np.pi / 180)
+    
+    angle_radians_cumsum = np.round(angle_radians_cumsum, 2)
+
     end_points = np.exp(1j * angle_radians_cumsum).cumsum(axis=-1)
+    end_points = np.round(end_points.real, 2) + np.round(end_points.imag, 2) * 1j
 
-    # Fill in the segment coordinates
-    segments[..., 0] = np.concatenate([np.zeros(mesh.shape[:-1] + (1,), dtype=np.complex_), end_points[..., :-1]], axis=-1)
+    segments[..., 0] = np.concatenate([np.zeros(mesh.shape[:-1] + (1,), dtype=np.complex128), end_points[..., :-1]], axis=-1)
     segments[..., 1] = end_points
-
+    
+    np.save("segments_vec.npy", segments)
     return segments
+
+
 
 
 
@@ -91,7 +110,7 @@ def calculate_cspace_vec(setup):
     # Get indices where c_space is 1
     #indices = np.argwhere(c_space == 1)
 
-    return c_space
+    return c_space, segments
 
 if __name__ == "__main__":
 
@@ -99,24 +118,40 @@ if __name__ == "__main__":
 
     STEP = 10
     test_setup = {
-        "arm_config": [
-            {'name': 'arm01', 'length': 1, 'angle-limit': 10},
-            {'name': 'arm02', 'length': 1, 'angle-limit': 10},
-            {'name': 'arm03', 'length': 1, 'angle-limit': 10}
+        "arm_config" :[
+            {'angle-limit': 10},
+            {'angle-limit': 10},
+            {'angle-limit': 10}
         ],
         "step_int": STEP,
-        "deg_step": 360 // STEP
+        "deg_step": 360//STEP
     }
-
+    
+    
     pr = cProfile.Profile()
     pr.enable()
 
-    cspace = calculate_cspace_vec(test_setup)
+    cspace, segments = calculate_cspace_vec(test_setup)
 
     pr.disable()
     pr.dump_stats(f"profile_seq_{STEP}.prof")
 
     print(hash_cspace(cspace))
+    
+    
+    from display_segment import display_robot_arm
+    
+    # test
+    result = segments[30][30][30]
+    
+    print(result)
+    
+    #result = segments_vec(config, test_setup)
+    
+    display_robot_arm(result)
+    
+    #input("HOLD")
+    
 
     np.save('cspace_vec.npy', cspace)
 

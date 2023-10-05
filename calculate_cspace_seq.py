@@ -10,25 +10,46 @@ def ccw(A, B, C):
 def intersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
+
+
+
+segment_hold = np.zeros([36, 36, 36, 3, 2], dtype=np.complex128)
+
+
+
 def calculate_segments(config, setup):
 
-    #print(config * 5)
     if np.array_equal(config, [9, 7, 5]):
         print('catch')
     
     start_point = complex(0, 0)
     segments = []
     
-    parent_angle = 0
+    total_angle = 0
     for angle in config:
         angle_degrees = setup["step_int"] * angle
-        angle_radians = parent_angle + (angle_degrees * np.pi / 180)
-        end_point = start_point + np.exp(1j * angle_radians)
-        parent_angle = angle_radians - np.pi
+        
+        #angle_radians = total_angle + (angle_degrees * np.pi / 180)
+        total_angle = total_angle + (angle_degrees * np.pi / 180)
+        
+        # round the angle_radians
+        total_angle = round(total_angle, 2)
+        
+        end_point = start_point + np.exp(1j * total_angle)
+        
+        #end_point = round(end_point, 2)
+        end_point = round(end_point.real, 2) + round(end_point.imag, 2) * 1j
+        
+        #parent_angle = angle_radians - np.pi
         segments.append((start_point, end_point))
         start_point = end_point
     
+    segment_hold[*config] = np.array(segments)
+    
     return segments
+
+
+
 
 
 def self_intersect(config, setup):
@@ -87,9 +108,25 @@ if __name__ == "__main__":
             {'angle-limit': 10}
         ],
         "step_int": STEP,
-        "deg_step": 360//STEP,
-        "degrees_to_radians": 0.01745329251 
+        "deg_step": 360//STEP
     }
+    
+    
+    from display_segment import display_robot_arm
+    
+    # test
+    config = [30,30,30]
+    
+    result = calculate_segments(config, test_setup)
+    
+    print(result)
+    display_robot_arm(result)
+    
+    #input("HOLD")
+    
+    
+    
+    
 
     pr = cProfile.Profile()
     pr.enable()
@@ -108,3 +145,6 @@ if __name__ == "__main__":
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
     #print(s.getvalue())
+    
+    
+    np.save("segments_seq.npy", segment_hold)

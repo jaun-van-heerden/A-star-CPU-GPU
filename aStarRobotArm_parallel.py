@@ -9,18 +9,13 @@ from multiprocessing import Pool, cpu_count
 STEP_INT = 2
 DEG_STEP = 360 // STEP_INT
 
-
 DEGREES_TO_RADIANS = np.pi / 180
-
 
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
-
-
-
 
 
 def plot_segments(segments):
@@ -197,7 +192,6 @@ class ArmConfiguration:
         return results_chunk
 
         
-    
     
     def calculate_segments(self, config):
         

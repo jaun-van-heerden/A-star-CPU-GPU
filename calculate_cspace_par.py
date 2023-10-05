@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     import cProfile
 
-    STEP = 5
+    STEP = 10
     
     test_setup = {
         "arm_config" :[
@@ -132,6 +132,27 @@ if __name__ == "__main__":
         "deg_step": 360//STEP,
         "degrees_to_radians": 0.01745329251 
     }
+    
+    
+    
+    
+    from display_segment import display_robot_arm
+    
+    # test
+    config = [4,2,1]
+    
+    result = calculate_segments_vec(config, test_setup)
+    
+    print(result)
+    display_robot_arm(result)
+    
+    input("HOLD")
+    
+    
+    
+    
+    
+    
 
     pr = cProfile.Profile()
     pr.enable()
