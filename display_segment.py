@@ -14,9 +14,10 @@ def display_robot_arm(segments):
     plt.title('Robot Arm Visualization')
     plt.grid(True)
     plt.show()
+    
 
 if __name__ == "__main__":
-    config = [9, 7, 5]  # Replace with actual angles
+    config = [1, 7, 5]  # Replace with actual angles
     setup = {"step_int": 10}  # Replace with the actual step interval
     
     segments = [(0j, (0.766+0.643j)), ((0.766+0.643j), (1.266+1.509j)), ((1.266+1.509j), (1.608+2.449j))]

@@ -1,0 +1,38 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_851a6984 [label="0: (global)()" name="calculate_cspace_seq::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_8e672add [label="86: calculate_cspace()" name="calculate_cspace_seq::calculate_cspace" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_eddfa88a [label="36: calculate_segments()" name="calculate_cspace_seq::calculate_segments" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_10173eae [label="5: ccw()" name="calculate_cspace_seq::ccw" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_842bcaf7 [label="20: intersect()" name="calculate_cspace_seq::intersect" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_6cbde221 [label="65: self_intersect()" name="calculate_cspace_seq::self_intersect" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_851a6984 -> node_8e672add [color="#F0E442" penwidth="2"];
+node_8e672add -> node_6cbde221 [color="#0072B2" penwidth="2"];
+node_842bcaf7 -> node_10173eae [color="#CC79A7" penwidth="2"];
+node_842bcaf7 -> node_10173eae [color="#CC79A7" penwidth="2"];
+node_842bcaf7 -> node_10173eae [color="#CC79A7" penwidth="2"];
+node_842bcaf7 -> node_10173eae [color="#CC79A7" penwidth="2"];
+node_6cbde221 -> node_eddfa88a [color="#E69F00" penwidth="2"];
+node_6cbde221 -> node_842bcaf7 [color="#E69F00" penwidth="2"];
+subgraph cluster_8dfc926f {
+    node_10173eae node_842bcaf7 node_eddfa88a node_6cbde221 node_8e672add node_851a6984;
+    label="File: calculate_cspace_seq";
+    name="calculate_cspace_seq";
+    style="filled";
+    graph[style=dotted];
+};
+}

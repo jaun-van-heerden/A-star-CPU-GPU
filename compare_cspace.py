@@ -27,8 +27,11 @@ def visualize_dim_cspaces(cspace1, cspace2, title1='cspace_seq', title2='cspace_
     plt.show()
 
 # Example usage
-cspace_seq = np.load('cspace_seq.npy')
+cspace_seq = np.load('cspace_gpu.npy')
 cspace_par = np.load('cspace_vec.npy')
+
+print(cspace_seq.shape, cspace_par.shape)
+
 
 visualize_dim_cspaces(cspace_seq, cspace_par)
 
