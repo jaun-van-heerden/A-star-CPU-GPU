@@ -54,6 +54,19 @@ plt.show()
 
 
 
+for type_ in types:
+    y_values = [data[f"{type_}_{num}"] for num in nums]
+    plt.plot(nums, y_values, label=f'Type: {type_}')
+
+# Remove the log scale lines
+# plt.xscale('log', base=2)
+# plt.yscale('log')
+plt.xlabel('Step Size')
+plt.ylabel('Total Time')
+plt.title('Profiling Results')
+plt.legend()
+plt.show()
+
 
 
 

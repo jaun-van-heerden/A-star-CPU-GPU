@@ -25,7 +25,7 @@ rows_list = []
 
 # Define folder and tolerances
 folder_path = "cspaces"
-tolerances = [0.01, 0.001, 0.0001, 1e-05]
+tolerances = [1, 0.1, 0.01, 0.001, 0.0001]
 
 # Read .npy files
 npy_files = [f for f in os.listdir(folder_path) if f.endswith('.npy')]
@@ -58,3 +58,5 @@ df = pd.concat([df, pd.DataFrame(rows_list)], ignore_index=True)
 
 # Display the DataFrame (useful in Jupyter Notebook)
 print(df)
+
+
