@@ -41,7 +41,11 @@ class AStarSolver:
     def solve(self, start, goal):
         open_list = [Node(start, heuristic=self._heuristic(start, goal))]
         came_from = {}
+        best_cost = {}
         visited = set()
+
+        start_node = open_list[0]
+        best_cost[start_node.position] = start_node.cost
 
         while open_list:
             current_node = heapq.heappop(open_list)
@@ -53,15 +57,18 @@ class AStarSolver:
                     path.append(current_node.position)
                 return path[::-1]
 
+            if current_node.position in visited:
+                continue
             visited.add(current_node.position)
 
             for neighbor in self._neighbors(current_node.position):
                 if neighbor in visited:
                     continue
                 next_cost = current_node.cost + 1
-                next_node = Node(neighbor, next_cost, self._heuristic(neighbor, goal))
-                if neighbor not in [node.position for node in open_list] or next_cost < current_node.cost:
+                if next_cost < best_cost.get(neighbor, float('inf')):
+                    best_cost[neighbor] = next_cost
                     came_from[neighbor] = current_node
+                    next_node = Node(neighbor, next_cost, self._heuristic(neighbor, goal))
                     heapq.heappush(open_list, next_node)
 
         return None  # No path found

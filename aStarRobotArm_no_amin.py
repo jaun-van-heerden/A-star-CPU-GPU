@@ -69,8 +69,12 @@ def calculate_cspace(setup):
         angle_limit = arm['angle-limit']
         min_angle = round((angle_limit / 360) * setup["deg_step"])
         max_angle = setup["deg_step"] - min_angle
-        c_space[arm_idx, 0:min_angle] = 0
-        c_space[arm_idx, max_angle:] = 0
+        slices_lo = [slice(None)] * num_arms
+        slices_lo[arm_idx] = slice(0, min_angle)
+        c_space[tuple(slices_lo)] = 0
+        slices_hi = [slice(None)] * num_arms
+        slices_hi[arm_idx] = slice(max_angle, None)
+        c_space[tuple(slices_hi)] = 0
 
         
     # Get indices where c_space is 1
