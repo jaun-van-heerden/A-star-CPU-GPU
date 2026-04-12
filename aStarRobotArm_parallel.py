@@ -83,10 +83,8 @@ def closest_point_to_segment(point, segment, threshold=0.5):
     if threshold is not None:
         distance = abs(point - closest)
         if distance < threshold:
-            # Here, you can raise an alert or handle accordingly.
-            # For this example, we'll raise an exception.
-            True
-    
+            return True
+
     return False
 
 
@@ -270,7 +268,7 @@ class ArmConfiguration:
             imag_parts = [c.imag for c in segment]
             ax.plot(real_parts, imag_parts, 'o-')
         
-        max_arm_length = sum([arm['length'] for arm in arm_config])
+        max_arm_length = sum([arm['length'] for arm in self.arm_config])
         ax.set_xlim(-max_arm_length, max_arm_length)
         ax.set_ylim(-max_arm_length, max_arm_length)
         ax.grid(True)
