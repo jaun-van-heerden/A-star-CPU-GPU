@@ -1,10 +1,13 @@
+import heapq
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+import pyqtgraph as pg
+from pyqtgraph.Qt import QtWidgets, QtCore
 from aStarXd import AStarSolver
-from itertools import combinations
+from itertools import combinations, product
 
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count
+from concurrent.futures import ProcessPoolExecutor
 
 STEP_INT = 2
 DEG_STEP = 360 // STEP_INT
@@ -93,85 +96,153 @@ def closest_point_to_segment(point, segment, threshold=0.5):
 
 class ArmAnimator:
 
-    def __init__(self, arm):#arm_config, obstacle_segments):
+    def __init__(self, arm):
         self.arm = arm
-        # self.arm_config = arm_config
-        # self.obstacle_segments = obstacle_segments
-        
+
     def animate_solutions(self, solutions):
-        fig, ax = plt.subplots()
+        if not solutions:
+            print("No solutions to animate.")
+            return
 
-        total_len = sum([arm['length'] for arm in self.arm.arm_config])
-        ax.set_xlim(-total_len, total_len)
-        ax.set_ylim(-total_len, total_len)
-        #ax.grid(True)
-        ax.set_aspect('equal', 'box')
-        
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_title('Visualization of Arm Traversal')
-        ax.grid(True)
-        ax.axhline(0, color='black',linewidth=0.2)
-        ax.axvline(0, color='black',linewidth=0.2)
-        
-        
-        
-        line, = ax.plot([], [], 'o-', color='blue', label='Current Position')
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-        # Flatten solutions into a single list for animation
-        flat_solution = [config for solution in solutions for config in solution]
+        flat = [cfg for sol in solutions for cfg in sol]
 
-        # Getting start and end endpoints for the arm
-        start_point = self.arm.calculate_segments(flat_solution[0])[-1][-1]
-        end_point = self.arm.calculate_segments(flat_solution[-1])[-1][-1]
-        
-        # get all target points
-        target_points = []
-        for solution in solutions:
-            target_points.extend([self.arm.calculate_segments(solution[-1])[-1][-1]] * len(solution))
-        
-        # Adding start and end markers for arm's endpoint
-        start_marker, = ax.plot(start_point.real, start_point.imag, 'go', markersize=4, label='Start Endpoint', alpha=0.5)
-        end_marker, = ax.plot(end_point.real, end_point.imag, 'ro', markersize=4, label='End Endpoint', alpha=0.5)
-        
-        target_marker, = ax.plot(target_points[0].real, target_points[0].imag, 'yx', markersize=4, label='Target')
-        
-        # Draw obstacle segments
+        # precompute joint positions for every frame up front
+        # each frame: list of (x, y) from base through every joint to end-effector
+        frames = []
+        for cfg in flat:
+            xs, ys = [0.0], [0.0]
+            for seg in self.arm.calculate_segments(cfg):
+                xs.append(seg[1].real)
+                ys.append(seg[1].imag)
+            frames.append((xs, ys))
+
+        # per-frame target: reuse end-effector from already-computed frames
+        targets = []
+        offset = 0
+        for sol in solutions:
+            xs, ys = frames[offset + len(sol) - 1]
+            targets.extend([(xs[-1], ys[-1])] * len(sol))
+            offset += len(sol)
+
+        total_frames = len(flat)
+        total_len = sum(a['length'] for a in self.arm.arm_config)
+
+        # --- window layout ---
+        win = QtWidgets.QMainWindow()
+        win.setWindowTitle("Robotic Arm — A* Path")
+        central = QtWidgets.QWidget()
+        win.setCentralWidget(central)
+        vbox = QtWidgets.QVBoxLayout(central)
+
+        # --- plot ---
+        plot = pg.PlotWidget()
+        plot.setAspectLocked(True)
+        plot.showGrid(x=True, y=True, alpha=0.3)
+        plot.setLabel('bottom', 'x')
+        plot.setLabel('left', 'y')
+        plot.setXRange(-total_len, total_len)
+        plot.setYRange(-total_len, total_len)
+        vbox.addWidget(plot)
+
+        # obstacles (static, drawn once)
         for obs in self.arm.obstacle_config:
-            ax.plot([obs[0].real, obs[1].real], [obs[0].imag, obs[1].imag], 'r-', linewidth=2)
+            plot.plot([obs[0].real, obs[1].real], [obs[0].imag, obs[1].imag],
+                      pen=pg.mkPen('r', width=3))
 
-        def init():
-            line.set_data([], [])
-            start_marker.set_data(start_point.real, start_point.imag)
-            end_marker.set_data(end_point.real, end_point.imag)
-            target_marker.set_data(target_points[0].real, target_points[0].imag)
-            return line, start_marker, end_marker, target_marker
+        # overall start / end endpoint markers (static)
+        plot.plot([frames[0][0][-1]], [frames[0][1][-1]],
+                  symbol='o', symbolSize=12, symbolBrush='g', pen=None)
+        plot.plot([frames[-1][0][-1]], [frames[-1][1][-1]],
+                  symbol='o', symbolSize=12, symbolBrush='r', pen=None)
 
-        def update(frame):
-            config = flat_solution[frame]
+        # animated arm
+        arm_curve = plot.plot(
+            [], [],
+            pen=pg.mkPen('b', width=2),
+            symbol='o', symbolSize=8, symbolBrush='b', symbolPen=None,
+        )
 
-            real_parts = []
-            imag_parts = []
-            for segment in self.arm.calculate_segments(config):
-                real_parts.append([c.real for c in segment])
-                imag_parts.append([c.imag for c in segment])
-            
-            line.set_data(real_parts, imag_parts)
-            target_point = target_points[frame]
-            target_marker.set_data([target_point.real], [target_point.imag])
-            
-            return line, start_marker, end_marker, target_marker 
+        # animated target marker
+        target_item = pg.ScatterPlotItem(
+            symbol='x', size=16,
+            brush=pg.mkBrush('y'), pen=pg.mkPen('y', width=2),
+        )
+        plot.addItem(target_item)
 
-        ani = FuncAnimation(fig, update, frames=len(flat_solution), init_func=init, blit=True, repeat=False)
-        #ax.legend()
-        # ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-        #               ncols=2, mode="expand", borderaxespad=0.)
-        ax.legend(bbox_to_anchor=(1, 1),
-          bbox_transform=fig.transFigure)
-        plt.show()
-        
-        
-    
+        # --- controls ---
+        ctrl = QtWidgets.QHBoxLayout()
+
+        play_btn = QtWidgets.QPushButton("Pause")
+        play_btn.setFixedWidth(70)
+
+        speed_lbl = QtWidgets.QLabel("3×")
+        speed_lbl.setFixedWidth(28)
+
+        speed_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        speed_slider.setRange(1, 10)
+        speed_slider.setValue(3)
+        speed_slider.setFixedWidth(160)
+
+        frame_lbl = QtWidgets.QLabel(f"1 / {total_frames}")
+
+        ctrl.addWidget(play_btn)
+        ctrl.addSpacing(8)
+        ctrl.addWidget(QtWidgets.QLabel("Speed:"))
+        ctrl.addWidget(speed_slider)
+        ctrl.addWidget(speed_lbl)
+        ctrl.addStretch()
+        ctrl.addWidget(frame_lbl)
+        vbox.addLayout(ctrl)
+
+        frame = 0
+        playing = True
+        BASE_MS = 80
+
+        def tick():
+            nonlocal frame, playing
+            if frame >= total_frames:
+                timer.stop()
+                play_btn.setText("Play")
+                playing = False
+                return
+            arm_curve.setData(*frames[frame])
+            tx, ty = targets[frame]
+            target_item.setData([tx], [ty])
+            frame_lbl.setText(f"{frame + 1} / {total_frames}")
+            frame += 1
+
+        def toggle():
+            nonlocal frame, playing
+            playing = not playing
+            if playing:
+                if frame >= total_frames:
+                    frame = 0
+                play_btn.setText("Pause")
+                timer.start()
+            else:
+                play_btn.setText("Play")
+                timer.stop()
+
+        def set_speed(val):
+            speed_lbl.setText(f"{val}×")
+            timer.setInterval(max(1, BASE_MS // val))
+
+        play_btn.clicked.connect(toggle)
+        speed_slider.valueChanged.connect(set_speed)
+
+        timer = QtCore.QTimer()
+        timer.setInterval(BASE_MS // speed_slider.value())
+        timer.timeout.connect(tick)
+        timer.start()
+
+        win.resize(720, 780)
+        win.show()
+        app.exec_()
+
+
+
 class ArmConfiguration:
     
     
@@ -223,30 +294,20 @@ class ArmConfiguration:
             angle_limit = arm['angle-limit']
             min_angle = round((angle_limit / 360) * DEG_STEP)
             max_angle = DEG_STEP - min_angle
-            c_space[arm_idx, 0:min_angle] = 0
-            c_space[arm_idx, max_angle:] = 0
+            slices = [slice(None)] * num_arms
+            slices[arm_idx] = slice(0, min_angle)
+            c_space[tuple(slices)] = 0
+            slices[arm_idx] = slice(max_angle, None)
+            c_space[tuple(slices)] = 0
 
-
-            
-            
-            
         # Get indices where c_space is 1
         indices = np.argwhere(c_space == 1)
 
-        
-        indices_chunks = np.array_split(indices, cpu_count())
+        n_workers = cpu_count()
+        indices_chunks = np.array_split(indices, n_workers)
 
-    
-        from concurrent.futures import ProcessPoolExecutor
-
-        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
             results_chunks = list(executor.map(self._validate_config, indices_chunks))
-
-    
-    
-        # #chunk_size = len(indices) // cpu_count() + 1  # This ensures you have enough chunks
-        # with Pool(processes=cpu_count()) as pool:
-        #     results_chunks = pool.map(self._validate_config, indices_chunks) #chunks(indices, chunk_size))
 
         # Flatten the results and populate the c_space
         for results in results_chunks:
@@ -314,6 +375,70 @@ class ArmConfiguration:
             raise ValueError("Arm configuration has self-intersections")
 
 
+class LazyAStarSolver:
+    """
+    A* over the discrete joint-angle space with on-the-fly collision checking.
+    Avoids precomputing the full D^N C-space grid — only evaluates configurations
+    that A* actually visits, so it scales much better with additional links.
+    Produces optimal paths (shortest step-count in joint space) via an admissible
+    Chebyshev (L∞) heuristic, identical to running A* on a precomputed grid.
+    """
+
+    def __init__(self, arm, deg_step):
+        self.arm = arm
+        self.deg_step = deg_step
+        self.ndim = len(arm.arm_config)
+        self._min = [round((a['angle-limit'] / 360) * deg_step) for a in arm.arm_config]
+        self._max = [deg_step - m for m in self._min]
+        self._offsets = [o for o in product([-1, 0, 1], repeat=self.ndim) if any(x != 0 for x in o)]
+
+    def _valid(self, pos):
+        for idx, lo, hi in zip(pos, self._min, self._max):
+            if not (lo <= idx < hi):
+                return False
+        return not self.arm.self_intersect(pos)
+
+    def _neighbors(self, pos):
+        for offset in self._offsets:
+            nb = tuple(p + o for p, o in zip(pos, offset))
+            if self._valid(nb):
+                yield nb
+
+    def _heuristic(self, a, b):
+        return max(abs(x - y) for x, y in zip(a, b))
+
+    def solve(self, start, goal):
+        if not self._valid(start) or not self._valid(goal):
+            return None
+
+        open_list = [(self._heuristic(start, goal), start)]
+        came_from = {}
+        best_cost = {start: 0}
+        visited = set()
+
+        while open_list:
+            _, current = heapq.heappop(open_list)
+
+            if current == goal:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.append(start)
+                return path[::-1]
+
+            if current in visited:
+                continue
+            visited.add(current)
+
+            for nb in self._neighbors(current):
+                next_cost = best_cost[current] + 1
+                if next_cost < best_cost.get(nb, float('inf')):
+                    best_cost[nb] = next_cost
+                    came_from[nb] = current
+                    heapq.heappush(open_list, (next_cost + self._heuristic(nb, goal), nb))
+
+        return None
 
 
 
@@ -388,65 +513,33 @@ if __name__ == "__main__":
     arm_config = [
         {'name': 'arm01', 'length': 1, 'angle-limit': 10},
         {'name': 'arm02', 'length': 1, 'angle-limit': 10},
-        {'name': 'arm03', 'length': 1, 'angle-limit': 10}
-        # {'name': 'arm04', 'length': 1, 'angle-limit': 5}
+        {'name': 'arm03', 'length': 1, 'angle-limit': 10},
     ]
-    
-    
+
     obstacle_segments = [
-        (complex(-2, 1), complex(-2, 0)), 
+        (complex(-2, 1), complex(-2, 0)),
         (complex(-1, -2), complex(-1, -2)),
         (complex(1, 1), complex(3, 1))
-        
     ]
-    # obstacle_segments = [
 
-    # ]
-    
     Arm = ArmConfiguration(arm_config, obstacle_segments)
-    
+    solver = LazyAStarSolver(Arm, DEG_STEP)
 
-    c_space = Arm.calculate_valid_space() #arm_config)
-    
-    
-    # Usage example: visualize the c_space slice for joints 0 and 1
-    #visualize_c_space_slice(c_space, 0, 1)
-    visualize_all_c_space_slices(c_space)
+    random_configs = [
+        (32, 62, 21), (33, 26, 51), (30, 18, 34), (60, 45, 58), (40, 51, 65),
+        (5, 7, 22), (54, 57, 36), (40, 68, 34), (57, 58, 43), (22, 26, 38)
+    ]
 
-    solver = AStarSolver(c_space)
-        
-        
-    num_random_configs = 10
-    # random_configs = select_random_configs(c_space, 1, num_random_configs)
-    
-    # print(random_configs)
-    
-    random_configs = [(32, 62, 21), (33, 26, 51), (30, 18, 34), (60, 45, 58), (40, 51, 65), (4, 7, 22), (54, 57, 36), (40, 68, 34), (57, 58, 43), (22, 26, 38)]
-    
-    # random_configs = [(30//STEP_INT, 60//STEP_INT, 60//STEP_INT), 
-    #                   (340//STEP_INT, 340//STEP_INT, 340//STEP_INT)]
-    
-
-    #ArmConfiguration.self_intersect(random_configs[0], arm_config)
-
-    #ArmConfiguration.plot_arm_configuration(random_configs[0], arm_config)
-    
-    #animator = ArmAnimator(arm_config, obstacle_segments)
-    
     animator = ArmAnimator(Arm)
-    
+
     all_solutions = []
     current_config = random_configs[0]
     for next_config in random_configs[1:]:
         solution = solver.solve(current_config, next_config)
         if solution:
             all_solutions.append(solution)
-            current_config = next_config  # set the end of this solution as the start for the next
+            current_config = next_config
         else:
             print(f"No solution found between {current_config} and {next_config}!")
 
     animator.animate_solutions(all_solutions)
-    
-    
-    
-    #visualize_c_space_slice_path(c_space, 1, 2, all_solutions[0])

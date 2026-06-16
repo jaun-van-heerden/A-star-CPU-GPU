@@ -36,7 +36,7 @@ class AStarSolver:
                 yield next_position
 
     def _heuristic(self, current, goal):
-        return sum((a - b) ** 2 for a, b in zip(current, goal)) ** 0.5
+        return max(abs(a - b) for a, b in zip(current, goal))
 
     def solve(self, start, goal):
         open_list = [Node(start, heuristic=self._heuristic(start, goal))]
