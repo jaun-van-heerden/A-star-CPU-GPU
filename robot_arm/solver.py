@@ -36,15 +36,28 @@ class LazyAStarSolver:
             if self.valid_fn(nb):
                 yield nb
 
-    def solve(self, start: tuple, goal: tuple) -> Optional[list]:
-        """Return the shortest path [start, ..., goal] or None if unreachable."""
+    def solve(
+        self,
+        start: tuple,
+        goal: tuple,
+        max_nodes: int = 500_000,
+        weight: float = 1.0,
+    ) -> Optional[list]:
+        """Return a path [start, ..., goal] or None if unreachable/over budget.
+
+        weight > 1 enables weighted A* (WA*): paths are within `weight` × optimal
+        length but the search volume shrinks by roughly weight^N, making it
+        practical for high-dimensional spaces (many joints).
+        """
         if not self.valid_fn(start) or not self.valid_fn(goal):
             return None
 
-        open_list = [(self._heuristic(start, goal), start)]
+        h0 = self._heuristic(start, goal)
+        open_list = [(weight * h0, start)]
         came_from: dict = {}
         best_cost: dict = {start: 0}
         visited: set = set()
+        nodes = 0
 
         while open_list:
             _, current = heapq.heappop(open_list)
@@ -60,15 +73,19 @@ class LazyAStarSolver:
             if current in visited:
                 continue
             visited.add(current)
+            nodes += 1
+            if nodes > max_nodes:
+                return None
 
+            g = best_cost[current]
             for nb in self._neighbours(current):
-                next_cost = best_cost[current] + 1
+                next_cost = g + 1
                 if next_cost < best_cost.get(nb, float('inf')):
                     best_cost[nb] = next_cost
                     came_from[nb] = current
                     heapq.heappush(
                         open_list,
-                        (next_cost + self._heuristic(nb, goal), nb),
+                        (next_cost + weight * self._heuristic(nb, goal), nb),
                     )
 
         return None

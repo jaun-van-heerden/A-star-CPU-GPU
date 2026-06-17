@@ -1,6 +1,4 @@
 import numpy as np
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtWidgets, QtCore
 
 
 class ArmAnimator2D:
@@ -9,6 +7,9 @@ class ArmAnimator2D:
         self.arm = arm
 
     def animate_solutions(self, solutions):
+        import pyqtgraph as pg
+        from pyqtgraph.Qt import QtWidgets, QtCore
+
         if not solutions:
             print("No solutions to animate.")
             return
@@ -57,8 +58,16 @@ class ArmAnimator2D:
 
         # obstacles (static, drawn once)
         for obs in self.arm.obstacle_config:
-            plot.plot([obs[0].real, obs[1].real], [obs[0].imag, obs[1].imag],
-                      pen=pg.mkPen('r', width=3))
+            if isinstance(obs[1], (int, float)):
+                # Circle obstacle — draw outline
+                theta = np.linspace(0, 2 * np.pi, 128)
+                cx, cy, r = obs[0].real, obs[0].imag, float(obs[1])
+                plot.plot(cx + r * np.cos(theta), cy + r * np.sin(theta),
+                          pen=pg.mkPen('r', width=2))
+            else:
+                # Line segment obstacle
+                plot.plot([obs[0].real, obs[1].real], [obs[0].imag, obs[1].imag],
+                          pen=pg.mkPen('r', width=3))
 
         # overall start / end endpoint markers (static)
         plot.plot([frames[0][0][-1]], [frames[0][1][-1]],
@@ -89,7 +98,7 @@ class ArmAnimator2D:
         speed_lbl = QtWidgets.QLabel("3×")
         speed_lbl.setFixedWidth(28)
 
-        speed_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        speed_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         speed_slider.setRange(1, 10)
         speed_slider.setValue(3)
         speed_slider.setFixedWidth(160)
@@ -148,4 +157,4 @@ class ArmAnimator2D:
 
         win.resize(720, 780)
         win.show()
-        app.exec_()
+        app.exec()

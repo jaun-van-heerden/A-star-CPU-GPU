@@ -1,7 +1,4 @@
 import numpy as np
-import pyqtgraph as pg
-import pyqtgraph.opengl as gl
-from pyqtgraph.Qt import QtWidgets, QtCore
 
 
 class ArmAnimator3D:
@@ -11,6 +8,10 @@ class ArmAnimator3D:
         self.arm = arm
 
     def animate_solutions(self, solutions):
+        import pyqtgraph as pg
+        import pyqtgraph.opengl as gl
+        from pyqtgraph.Qt import QtWidgets, QtCore
+
         if not solutions:
             print("No solutions to animate.")
             return
@@ -101,7 +102,7 @@ class ArmAnimator3D:
         speed_lbl = QtWidgets.QLabel("3×")
         speed_lbl.setFixedWidth(28)
 
-        speed_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        speed_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         speed_slider.setRange(1, 10)
         speed_slider.setValue(3)
         speed_slider.setFixedWidth(160)
@@ -159,4 +160,4 @@ class ArmAnimator3D:
 
         win.resize(800, 680)
         win.show()
-        app.exec_()
+        app.exec()
